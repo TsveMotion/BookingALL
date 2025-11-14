@@ -1,0 +1,554 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER       // Business owner
+  MANAGER     // Location manager
+  STAFF       // Staff member
+  ADMIN       // Platform admin
+}
+
+enum BusinessCategory {
+  BEAUTICIAN
+  HAIRDRESSER
+  BARBER
+  NAIL_TECH
+  MASSAGE
+  SPA
+  OTHER
+}
+
+enum SubscriptionPlan {
+  FREE
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+// Core User Model - Multi-tenant ready
+model User {
+  id                String            @id @default(cuid())
+  email             String            @unique
+  passwordHash      String
+  name              String?
+  phone             String?
+  emailVerified     Boolean           @default(false)
+  role              UserRole          @default(OWNER)
+  
+  // Business relationship (null if platform admin)
+  businessId        String?
+  business          Business?         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  // Owned business (if role is OWNER)
+  ownedBusiness     Business?         @relation("BusinessOwner")
+  
+  // Avatar
+  avatar            String?
+  
+  // Two-Factor Authentication (Pro only)
+  twoFactorEnabled  Boolean           @default(false)
+  twoFactorSecret   String?
+  
+  // Activity tracking
+  lastLoginAt       DateTime?
+  lastActiveAt      DateTime?
+  loginActivity     LoginActivity[]
+  
+  // Metadata
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  // Relations
+  sessions          Session[]
+  verificationTokens VerificationToken[]
+  passwordResetTokens PasswordResetToken[]
+  bookingsCreated   Booking[]         @relation("BookingCreatedBy")
+  servicesCreated   Service[]
+  staffProfile      Staff?
+  
+  @@index([email])
+  @@index([businessId])
+  @@index([role])
+}
+
+// Business Model - Each tenant
+model Business {
+  id                String            @id @default(cuid())
+  
+  // Business Info
+  name              String
+  slug              String            @unique
+  category          BusinessCategory
+  description       String?           @db.Text
+  logo              String?
+  
+  // Contact
+  email             String?
+  phone             String?
+  website           String?
+  
+  // Address
+  address           String?
+  city              String?
+  postcode          String?
+  country           String            @default("UK")
+  
+  // Subscription
+  plan              SubscriptionPlan  @default(FREE)
+  subscriptionStatus String           @default("active")
+  stripeCustomerId  String?           @unique
+  stripeSubscriptionId String?        @unique
+  
+  // Owner
+  ownerId           String            @unique
+  owner             User              @relation("BusinessOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  
+  // Settings
+  settings          Json?             // Business-specific settings
+  branding          Json?             // Colors, fonts, etc.
+  
+  // Status
+  active            Boolean           @default(true)
+  onboardingComplete Boolean          @default(false)
+  
+  // Metadata
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  // Relations
+  users             User[]
+  locations         Location[]
+  staff             Staff[]
+  staffInvites      StaffInvite[]
+  services          Service[]
+  clients           Client[]
+  bookings          Booking[]
+  bookingPage       BookingPageSettings?
+  businessSettings  BusinessSettings?
+  
+  @@index([slug])
+  @@index([category])
+  @@index([ownerId])
+  @@index([plan])
+}
+
+// Location Model - Multiple locations per business
+model Location {
+  id                String            @id @default(cuid())
+  businessId        String
+  business          Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  // Location Info
+  name              String
+  address           String?
+  city              String?
+  postcode          String?
+  phone             String?
+  
+  // Working Hours
+  workingHours      Json?             // {"monday": {"open": "09:00", "close": "17:00", "closed": false}}
+  
+  // Settings
+  isPrimary         Boolean           @default(false)
+  active            Boolean           @default(true)
+  
+  // Metadata
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  // Relations
+  services          ServiceLocation[]
+  bookings          Booking[]
+  
+  @@index([businessId])
+  @@index([active])
+}
+
+// Staff Model - Team members per business
+model Staff {
+  id                String            @id @default(cuid())
+  businessId        String
+  business          Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  // Link to User account (if they've accepted invite)
+  userId            String?           @unique
+  user              User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  // Staff Info
+  name              String
+  email             String
+  phone             String?
+  role              String?           // "Stylist", "Manager", "Receptionist", etc.
+  
+  // Location assignments (can be assigned to multiple locations)
+  assignedLocationIds String[]        @default([])
+  
+  // Permissions - Full access control
+  permissions       Json              @default("{\"canManageBookings\":false,\"canViewAllBookings\":false,\"canManageClients\":false,\"canViewAllClients\":false,\"canManageServices\":false,\"canManageLocations\":false,\"canManageTeam\":false,\"canViewAnalytics\":false,\"canManageSettings\":false,\"canViewBusinessBookings\":false}")
+  
+  // Status
+  status            String            @default("pending") // "pending", "active", "inactive"
+  active            Boolean           @default(true)
+  inviteAccepted    Boolean           @default(false)
+  
+  // Metadata
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  @@index([businessId])
+  @@index([userId])
+  @@index([email])
+  @@index([active])
+  @@unique([businessId, email])
+}
+
+// Staff Invite Model - For sending invitations to new staff
+model StaffInvite {
+  id                String            @id @default(cuid())
+  businessId        String
+  business          Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  // Invite details
+  email             String
+  name              String
+  role              String?
+  assignedLocationIds String[]        @default([])
+  permissions       Json              @default("{\"canManageBookings\":false,\"canViewAllBookings\":false,\"canManageClients\":false,\"canViewAllClients\":false,\"canManageServices\":false,\"canManageLocations\":false,\"canManageTeam\":false,\"canViewAnalytics\":false,\"canManageSettings\":false,\"canViewBusinessBookings\":false}")
+  
+  // Token for secure invite link
+  token             String            @unique
+  expiresAt         DateTime
+  
+  // Status
+  used              Boolean           @default(false)
+  usedAt            DateTime?
+  
+  // Created by
+  createdById       String
+  
+  // Metadata
+  createdAt         DateTime          @default(now())
+  
+  @@index([businessId])
+  @@index([email])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+// Service Model
+model Service {
+  id                String            @id @default(cuid())
+  businessId        String
+  business          Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  // Service Info
+  name              String
+  description       String?           @db.Text
+  duration          Int               // Duration in minutes
+  price             Float             // Price in pounds
+  
+  // Categorization
+  category          String?
+  
+  // Created by
+  createdById       String
+  createdBy         User              @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  
+  // Status
+  active            Boolean           @default(true)
+  
+  // Metadata
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  // Relations
+  locations         ServiceLocation[]
+  bookings          Booking[]
+  
+  @@index([businessId])
+  @@index([active])
+  @@index([createdById])
+}
+
+// Junction table for Service-Location relationship
+model ServiceLocation {
+  id                String            @id @default(cuid())
+  serviceId         String
+  service           Service           @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  locationId        String
+  location          Location          @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  
+  active            Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  
+  @@unique([serviceId, locationId])
+  @@index([serviceId])
+  @@index([locationId])
+}
+
+// Client Model
+model Client {
+  id                String            @id @default(cuid())
+  businessId        String
+  business          Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  // Client Info
+  name              String
+  email             String
+  phone             String?
+  birthday          DateTime?
+  
+  // Notes
+  notes             String?           @db.Text
+  tags              String[]          @default([])
+  
+  // Metadata
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  // Relations
+  bookings          Booking[]
+  
+  @@index([businessId])
+  @@index([email])
+  @@unique([businessId, email])
+}
+
+// Booking Model
+model Booking {
+  id                String            @id @default(cuid())
+  businessId        String
+  business          Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  // Client
+  clientId          String
+  client            Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  // Service
+  serviceId         String
+  service           Service           @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  
+  // Location
+  locationId        String?
+  location          Location?         @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  
+  // Staff (optional)
+  staffId           String?
+  
+  // Time
+  startTime         DateTime
+  endTime           DateTime
+  
+  // Status
+  status            BookingStatus     @default(PENDING)
+  
+  // Payment
+  totalAmount       Float
+  paymentStatus     PaymentStatus     @default(PENDING)
+  paymentMethod     String?           // "card", "cash", "bank_transfer"
+  stripePaymentId   String?
+  
+  // Notes
+  notes             String?           @db.Text
+  
+  // Created by (staff member who created it)
+  createdById       String
+  createdBy         User              @relation("BookingCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  
+  // Metadata
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  @@index([businessId])
+  @@index([clientId])
+  @@index([serviceId])
+  @@index([locationId])
+  @@index([startTime])
+  @@index([status])
+  @@index([createdById])
+}
+
+// Authentication Models
+model Session {
+  id                String            @id @default(cuid())
+  userId            String
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Token
+  token             String            @unique
+  refreshToken      String            @unique
+  
+  // Expiry
+  expiresAt         DateTime
+  refreshExpiresAt  DateTime
+  
+  // Metadata
+  userAgent         String?
+  ipAddress         String?
+  
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  @@index([userId])
+  @@index([token])
+  @@index([refreshToken])
+  @@index([expiresAt])
+}
+
+model VerificationToken {
+  id                String            @id @default(cuid())
+  userId            String
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  token             String            @unique
+  expiresAt         DateTime
+  
+  createdAt         DateTime          @default(now())
+  
+  @@index([userId])
+  @@index([token])
+}
+
+model PasswordResetToken {
+  id                String            @id @default(cuid())
+  userId            String
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  token             String            @unique
+  expiresAt         DateTime
+  used              Boolean           @default(false)
+  
+  createdAt         DateTime          @default(now())
+  
+  @@index([userId])
+  @@index([token])
+}
+
+// Booking Page Settings - Customizable public booking page
+model BookingPageSettings {
+  id                String            @id @default(cuid())
+  businessId        String            @unique
+  business          Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  // Page Status
+  enabled           Boolean           @default(true)
+  
+  // Branding
+  primaryColor      String            @default("#9333ea") // Purple
+  logo              String?
+  coverImage        String?
+  
+  // Content
+  heroTitle         String?
+  heroDescription   String?           @db.Text
+  welcomeMessage    String?           @db.Text
+  thankYouMessage   String?           @db.Text
+  
+  // SEO
+  metaTitle         String?
+  metaDescription   String?           @db.Text
+  
+  // Business Hours
+  openingHours      Json?             // {"monday": {"open": "09:00", "close": "17:00", "closed": false}}
+  
+  // Booking Settings
+  requireDeposit    Boolean           @default(false)
+  depositPercent    Int               @default(20)      // Percentage for deposit
+  allowOnlinePayment Boolean          @default(true)
+  requireApproval   Boolean           @default(false)    // Manual approval for bookings
+  
+  // Cancellation
+  cancellationPolicy String?          @db.Text
+  cancellationHours  Int              @default(24)      // Hours before appointment
+  
+  // Service Visibility
+  visibleServiceIds  String[]         @default([])      // Empty = all visible
+  
+  // Gallery
+  galleryImages     String[]          @default([])
+  
+  // Social Links
+  socialLinks       Json?             // {"instagram": "...", "facebook": "..."}
+  
+  // Metadata
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  @@index([businessId])
+  @@index([enabled])
+}
+
+// Business Settings Model - Extended settings for Pro features
+model BusinessSettings {
+  id                String            @id @default(cuid())
+  businessId        String            @unique
+  business          Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  // Branding (Pro only)
+  branding          Json?             // {"primaryColor": "#...", "accentColor": "#...", "font": "...", "logo": "...", "coverImage": "..."}
+  
+  // SEO Settings (Pro only)
+  seo               Json?             // {"metaTitle": "...", "metaDescription": "...", "keywords": []}
+  
+  // Notifications
+  notifications     Json?             // {"emailNotifications": true, "bookingReminders": true, ...}
+  
+  // Custom Domain (Pro only)
+  customDomain      String?
+  
+  // Social Links
+  socialLinks       Json?             // {"instagram": "...", "facebook": "...", "twitter": "...", "linkedin": "..."}
+  
+  // Google Maps
+  googlePlaceId     String?
+  
+  // Metadata
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  @@index([businessId])
+}
+
+// Login Activity Model - Track user login history (Pro only)
+model LoginActivity {
+  id                String            @id @default(cuid())
+  userId            String
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Login details
+  ipAddress         String?
+  userAgent         String?
+  device            String?
+  location          String?           // City, Country
+  
+  // Status
+  success           Boolean           @default(true)
+  failureReason     String?
+  
+  // Metadata
+  createdAt         DateTime          @default(now())
+  
+  @@index([userId])
+  @@index([createdAt])
+}

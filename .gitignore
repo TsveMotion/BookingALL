@@ -1,4 +1,11 @@
-# Ignore everything
-*
-# But keep the .gitignore itself tracked
-!.gitignore
+Set-Content .gitignore @"
+node_modules/
+.env
+.env.local
+.env.example
+.next/
+dist/
+build/
+*.log
+coverage/
+"@
