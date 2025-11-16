@@ -31,16 +31,16 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 
 // Generate JWT token
 export function generateToken(payload: JWTPayload): string {
-  return jwt.sign(payload, config.jwt.secret, {
-    expiresIn: config.jwt.expiresIn,
-  });
+  return jwt.sign(payload, config.jwt.secret as any, {
+    expiresIn: config.jwt.expiresIn as any,
+  } as any);
 }
 
 // Generate refresh token
 export function generateRefreshToken(payload: JWTPayload): string {
-  return jwt.sign(payload, config.jwt.refreshSecret, {
-    expiresIn: config.jwt.refreshExpiresIn,
-  });
+  return jwt.sign(payload, config.jwt.refreshSecret as any, {
+    expiresIn: config.jwt.refreshExpiresIn as any,
+  } as any);
 }
 
 // Verify JWT token

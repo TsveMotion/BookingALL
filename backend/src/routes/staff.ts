@@ -471,8 +471,8 @@ router.patch('/:id', authenticate, requireBusiness, async (req: AuthRequest, res
       where: { id },
       data: {
         ...data,
-        permissions: data.permissions ? { ...existing.permissions, ...data.permissions } : undefined,
-      },
+        permissions: data.permissions ? { ...(existing.permissions as any), ...data.permissions } : undefined,
+      } as any,
       include: {
         user: {
           select: {

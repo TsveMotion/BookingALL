@@ -17,8 +17,10 @@ class UpstashRedis {
           Authorization: `Bearer ${this.token}`,
         },
       });
-      const data = await response.json();
-      return data.result;
+      const data: any = await response.json();
+      if (data && data.result) {
+        return data.result;
+      }
     } catch (error) {
       console.error('Redis fetch error:', error);
       return null;

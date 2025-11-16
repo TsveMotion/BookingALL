@@ -270,7 +270,7 @@ router.post('/booking/payment', authenticate, requireBusiness, validateBody(crea
       where: { id: bookingId },
       data: {
         paymentIntentId: paymentIntent.id,
-      },
+      } as any,
     });
 
     res.json({
@@ -458,7 +458,7 @@ router.post('/webhook', async (req, res) => {
             data: {
               paymentStatus: 'PAID',
               stripeChargeId: paymentIntent.id,
-            },
+            } as any,
           });
         }
         break;

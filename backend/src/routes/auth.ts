@@ -575,7 +575,7 @@ router.get('/google/callback', async (req, res: Response) => {
 
     // Create session
     const session = await createSession(user.id, req.headers['user-agent'], req.ip);
-    const business = user.ownedBusiness || user.business;
+    const business = (user as any).ownedBusiness || user.business;
     const dashboardUrl = getDashboardUrl(business?.category || null);
 
     res.json({

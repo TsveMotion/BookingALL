@@ -196,9 +196,11 @@ router.post('/', authenticate, requireBusiness, async (req: AuthRequest, res: Re
     // Create location
     const location = await prisma.location.create({
       data: {
-        businessId,
         ...parsed,
-      },
+        business: {
+          connect: { id: businessId }
+        }
+      } as any,
     });
 
     res.status(201).json(location);

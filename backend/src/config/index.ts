@@ -104,4 +104,6 @@ export const config = {
     hairdressers: process.env.HAIRDRESSERS_FRONTEND_URL || 'http://localhost:3002',
     barbers: process.env.BARBERS_FRONTEND_URL || 'http://localhost:3003',
   },
+  
+  backendUrl: process.env.BACKEND_URL || 'http://localhost:4000',
 };

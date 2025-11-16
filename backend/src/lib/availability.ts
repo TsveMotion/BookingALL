@@ -25,16 +25,8 @@ export async function calculateAvailability(
 
   try {
     // Get service details
-    const service = await prisma.service.findUnique({
+    const service: any = await prisma.service.findUnique({
       where: { id: serviceId, businessId },
-      select: {
-        id: true,
-        name: true,
-        duration: true,
-        price: true,
-        category: true,
-        staffIds: true,
-      },
     });
 
     if (!service) {
@@ -42,11 +34,8 @@ export async function calculateAvailability(
     }
 
     // Get business settings
-    const business = await prisma.business.findUnique({
+    const business: any = await prisma.business.findUnique({
       where: { id: businessId },
-      select: {
-        openingHours: true,
-      },
     });
 
     // Default business hours: 9 AM - 6 PM
@@ -67,7 +56,7 @@ export async function calculateAvailability(
           id: true,
           name: true,
           availability: true,
-        },
+        } as any,
       });
     } else {
       // Get all staff qualified for this service
@@ -83,7 +72,7 @@ export async function calculateAvailability(
           id: true,
           name: true,
           availability: true,
-        },
+        } as any,
       });
     }
 

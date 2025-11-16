@@ -16,6 +16,11 @@ export interface User {
     plan: string;
     logo: string | null;
   } | null;
+  subscription?: {
+    plan: string;
+    status: string;
+    currentPeriodEnd: string;
+  } | null;
   lastLoginAt: Date | null;
 }
 

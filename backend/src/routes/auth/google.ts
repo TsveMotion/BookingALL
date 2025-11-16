@@ -57,7 +57,7 @@ router.get('/google', (req, res, next) => {
   
   // Store in session for callback
   if (req.session) {
-    req.session.returnTo = returnTo;
+    (req.session as any).returnTo = returnTo;
   }
   
   passport.authenticate('google', { 

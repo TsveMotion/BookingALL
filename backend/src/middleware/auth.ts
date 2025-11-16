@@ -2,6 +2,15 @@ import { Request, Response, NextFunction } from 'express';
 import { verifyToken, JWTPayload } from '../lib/auth';
 import prisma from '../lib/prisma';
 
+// Extend Express Request to include user
+declare global {
+  namespace Express {
+    interface User {
+      id?: string;
+    }
+  }
+}
+
 export interface AuthRequest extends Request {
   user?: JWTPayload & {
     id: string;
