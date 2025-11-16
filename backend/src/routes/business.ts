@@ -26,6 +26,67 @@ async function generateUniqueSlug(businessName: string): Promise<string> {
   return slug;
 }
 
+// Get current user's business (for locations page)
+router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        business: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            subdomain: true,
+            category: true,
+            address: true,
+            city: true,
+            postcode: true,
+            phone: true,
+            email: true,
+            plan: true,
+          },
+        },
+      },
+    });
+
+    if (!user || !user.business) {
+      return res.status(404).json({ error: 'Business not found' });
+    }
+
+    let business = user.business;
+
+    // Auto-generate slug if missing (for subdomain fallback)
+    if (!business.slug) {
+      const newSlug = await generateUniqueSlug(business.name);
+      business = await prisma.business.update({
+        where: { id: business.id },
+        data: { slug: newSlug },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          subdomain: true,
+          category: true,
+          address: true,
+          city: true,
+          postcode: true,
+          phone: true,
+          email: true,
+          plan: true,
+        },
+      });
+    }
+
+    res.json(business);
+  } catch (error) {
+    console.error('Get business/me error:', error);
+    res.status(500).json({ error: 'Failed to fetch business' });
+  }
+});
+
 // Get business details
 router.get('/', authenticate, requireBusiness, async (req: AuthRequest, res: Response) => {
   try {
@@ -211,6 +272,27 @@ router.patch('/details', authenticate, requireBusiness, async (req: AuthRequest,
   } catch (error) {
     console.error('Update business details error:', error);
     return res.status(500).json({ error: 'Failed to update business details' });
+  }
+});
+
+// Update business plan (for onboarding free plan selection)
+router.patch('/plan', authenticate, requireBusiness, async (req: AuthRequest, res: Response) => {
+  try {
+    const businessId = req.user!.businessId!;
+    const { plan } = req.body;
+
+    const business = await prisma.business.update({
+      where: { id: businessId },
+      data: { plan: plan.toUpperCase() },
+    });
+
+    // Invalidate cache
+    await cache.del(`business:${businessId}`);
+
+    return res.json({ message: 'Plan updated successfully', plan: business.plan });
+  } catch (error) {
+    console.error('Update business plan error:', error);
+    return res.status(500).json({ error: 'Failed to update plan' });
   }
 });
 

@@ -1,11 +1,9 @@
 import { Router, Response } from 'express';
-import { nanoid } from 'nanoid';
 import prisma from '../lib/prisma';
 import { hashPassword, verifyPassword, createSession, refreshSession, getDashboardUrl, generateVerificationToken, generatePasswordResetToken } from '../lib/auth';
 import { validateBody } from '../middleware/validation';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { registerSchema, loginSchema, refreshTokenSchema, forgotPasswordSchema, resetPasswordSchema, verifyEmailSchema } from '../validators/auth';
-import { cache } from '../lib/redis';
 import { getGoogleAuthUrl, getGoogleUser } from '../lib/google-oauth';
 import { config } from '../config';
 import { sendVerificationEmail } from '../lib/email';
@@ -15,7 +13,7 @@ const router = Router();
 // Register
 router.post('/register', validateBody(registerSchema), async (req, res: Response) => {
   try {
-    const { email, password, name, businessName, category, phone } = req.body;
+    const { email, password, name, businessName, category, phone, address, city, postcode, locationName } = req.body;
 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
@@ -63,7 +61,7 @@ router.post('/register', validateBody(registerSchema), async (req, res: Response
         data: {
           name: businessName,
           slug,
-          category,
+          category: category.toUpperCase() as any, // Convert to uppercase for enum
           ownerId: newUser.id,
           plan: 'FREE',
         },
@@ -75,14 +73,26 @@ router.post('/register', validateBody(registerSchema), async (req, res: Response
         data: { businessId: business.id },
       });
 
+      // Save business address to business record
+      if (address || city || postcode) {
+        await tx.business.update({
+          where: { id: business.id },
+          data: {
+            address: address || null,
+            city: city || null,
+            postcode: postcode || null,
+          },
+        });
+      }
+
       // Auto-create default location for FREE plan
       const location = await tx.location.create({
         data: {
           businessId: business.id,
-          name: `${businessName} - Main Location`,
-          address: '',
-          city: '',
-          postcode: '',
+          name: locationName || `${businessName} - Main Location`,
+          address: address || null,
+          city: city || null,
+          postcode: postcode || null,
           isPrimary: true,
           active: true,
         },
@@ -172,9 +182,38 @@ router.post('/register', validateBody(registerSchema), async (req, res: Response
       dashboardUrl: dashboardUrl,
       category,
     });
-  } catch (error) {
-    console.error('Register error:', error);
-    res.status(500).json({ error: 'Registration failed' });
+  } catch (error: any) {
+    console.error('❌ Register error:', error);
+    
+    // Handle Prisma unique constraint errors
+    if (error.code === 'P2002') {
+      const field = error.meta?.target?.[0] || 'field';
+      return res.status(400).json({ 
+        error: `This ${field} is already in use`,
+        details: 'Please use a different value'
+      });
+    }
+    
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        details: error.message 
+      });
+    }
+    
+    // Log detailed error for debugging
+    console.error('Full error details:', {
+      message: error.message,
+      code: error.code,
+      meta: error.meta,
+      stack: error.stack
+    });
+    
+    res.status(500).json({ 
+      error: 'Registration failed',
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Please try again later'
+    });
   }
 });
 
@@ -395,8 +434,16 @@ router.post('/forgot-password', validateBody(forgotPasswordSchema), async (req, 
 
     const resetToken = await generatePasswordResetToken(user.id);
 
-    // TODO: Send password reset email
-    console.log(`Password reset token for ${email}: ${resetToken}`);
+    // Send password reset email
+    try {
+      const resetUrl = `${config.frontendUrls.beauticians}/reset-password?token=${resetToken}`;
+      const { sendPasswordResetEmail } = await import('../lib/email');
+      await sendPasswordResetEmail(email, resetUrl, user.name || 'User');
+      console.log(`✅ Password reset email sent to ${email}`);
+    } catch (emailError) {
+      console.error('Failed to send reset email:', emailError);
+      // Still return success to not reveal if email exists
+    }
 
     res.json({ message: 'If the email exists, a reset link has been sent' });
   } catch (error) {
@@ -528,7 +575,8 @@ router.get('/google/callback', async (req, res: Response) => {
 
     // Create session
     const session = await createSession(user.id, req.headers['user-agent'], req.ip);
-    const dashboardUrl = getDashboardUrl(user);
+    const business = user.ownedBusiness || user.business;
+    const dashboardUrl = getDashboardUrl(business?.category || null);
 
     res.json({
       token: session.token,

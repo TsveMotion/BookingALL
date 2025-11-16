@@ -62,6 +62,30 @@ router.get('/', authenticate, requireBusiness, async (req: AuthRequest, res: Res
             },
           },
         },
+        addons: {
+          select: {
+            id: true,
+            name: true,
+            priceAdjustment: true,
+            durationAdjustment: true,
+            required: true,
+            active: true,
+          },
+        },
+        aftercareTemplate: {
+          select: {
+            id: true,
+            title: true,
+            active: true,
+          },
+        },
+        waiverTemplate: {
+          select: {
+            id: true,
+            title: true,
+            active: true,
+          },
+        },
         _count: {
           select: {
             bookings: true,

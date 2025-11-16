@@ -1,0 +1,58 @@
+/**
+ * GlamBooking WordPress Plugin - Public Styles
+ * Black & White Theme
+ */
+
+.glambooking-widget {
+    width: 100%;
+    margin: 20px 0;
+}
+
+.glambooking-widget iframe {
+    width: 100%;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.glambooking-error {
+    background: rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    padding: 16px;
+    text-align: center;
+    color: rgba(0, 0, 0, 0.8);
+}
+
+.glambooking-error p {
+    margin: 0;
+}
+
+.glambooking-error a {
+    color: #000000;
+    text-decoration: underline;
+}
+
+/* Loading State */
+.glambooking-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    background: rgba(0, 0, 0, 0.02);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+}
+
+.glambooking-loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(0, 0, 0, 0.1);
+    border-top-color: #000000;
+    border-radius: 50%;
+    animation: glambooking-spin 1s linear infinite;
+}
+
+@keyframes glambooking-spin {
+    to { transform: rotate(360deg); }
+}

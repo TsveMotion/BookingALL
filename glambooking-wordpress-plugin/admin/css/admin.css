@@ -1,0 +1,271 @@
+/**
+ * GlamBooking WordPress Plugin - Admin Styles
+ * Strict Black & White Theme (Fresha-inspired)
+ */
+
+/* Layout */
+.glambooking-settings,
+.glambooking-dashboard,
+.glambooking-bookings,
+.glambooking-analytics {
+    max-width: 1200px;
+}
+
+/* Card Component */
+.glambooking-card {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+.glambooking-card h2 {
+    margin-top: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #000000;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+}
+
+.glambooking-card h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #000000;
+    margin-top: 20px;
+    margin-bottom: 8px;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+/* Stats Grid */
+.glambooking-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.glambooking-stat-card {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.glambooking-stat-card .stat-icon {
+    font-size: 32px;
+}
+
+.glambooking-stat-card .stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: #000000;
+    line-height: 1;
+}
+
+.glambooking-stat-card .stat-label {
+    font-size: 13px;
+    color: rgba(0, 0, 0, 0.6);
+    margin-top: 4px;
+}
+
+/* Status Badges */
+.glambooking-status {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.glambooking-status-pending {
+    background: rgba(0, 0, 0, 0.05);
+    color: #000000;
+}
+
+.glambooking-status-confirmed {
+    background: #000000;
+    color: #ffffff;
+}
+
+.glambooking-status-completed {
+    background: rgba(0, 0, 0, 0.1);
+    color: #000000;
+}
+
+.glambooking-status-cancelled {
+    background: rgba(0, 0, 0, 0.05);
+    color: rgba(0, 0, 0, 0.4);
+}
+
+/* Connected Status */
+.glambooking-connected .glambooking-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.glambooking-connected .dashicons-yes-alt {
+    color: #000000;
+    font-size: 24px;
+}
+
+/* Instructions */
+.glambooking-instructions {
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+    padding: 16px;
+    margin: 16px 0;
+}
+
+.glambooking-instructions ol {
+    margin: 8px 0 0 20px;
+}
+
+.glambooking-instructions li {
+    margin-bottom: 4px;
+    color: rgba(0, 0, 0, 0.8);
+}
+
+/* Code Display */
+.glambooking-code {
+    display: block;
+    background: rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    padding: 12px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    color: #000000;
+    margin: 8px 0;
+}
+
+/* Notice */
+.glambooking-notice {
+    background: rgba(0, 0, 0, 0.03);
+    border-left: 4px solid #000000;
+    padding: 16px;
+    margin-bottom: 24px;
+}
+
+.glambooking-notice p {
+    margin: 0;
+    color: rgba(0, 0, 0, 0.8);
+}
+
+/* Feature List */
+.glambooking-feature-list {
+    list-style: none;
+    padding: 0;
+    margin: 16px 0;
+}
+
+.glambooking-feature-list li {
+    padding: 8px 0;
+    color: rgba(0, 0, 0, 0.8);
+}
+
+/* Quick Actions */
+.glambooking-quick-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+/* Empty State */
+.glambooking-empty,
+.glambooking-empty-state {
+    text-align: center;
+    padding: 40px;
+    color: rgba(0, 0, 0, 0.5);
+}
+
+/* Welcome Screen */
+.glambooking-welcome {
+    text-align: center;
+    padding: 60px 40px;
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+}
+
+.glambooking-welcome h2 {
+    font-size: 24px;
+    margin-bottom: 12px;
+    color: #000000;
+}
+
+/* Footer */
+.glambooking-footer {
+    text-align: center;
+    padding: 20px;
+    color: rgba(0, 0, 0, 0.5);
+    font-size: 12px;
+}
+
+.glambooking-footer a {
+    color: #000000;
+    text-decoration: underline;
+}
+
+.glambooking-footer-actions {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Upgrade Card */
+.glambooking-upgrade-card {
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.02) 0%, rgba(0, 0, 0, 0.05) 100%);
+    border: 2px solid #000000;
+}
+
+/* Tables */
+.glambooking-dashboard table,
+.glambooking-bookings table {
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.glambooking-dashboard table th,
+.glambooking-bookings table th {
+    background: rgba(0, 0, 0, 0.03);
+    font-weight: 600;
+    color: #000000;
+}
+
+/* Error State */
+.glambooking-error {
+    background: rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    padding: 16px;
+    color: rgba(0, 0, 0, 0.8);
+}
+
+/* Buttons Override */
+.glambooking-settings .button-primary,
+.glambooking-dashboard .button-primary {
+    background: #000000;
+    border-color: #000000;
+    color: #ffffff;
+}
+
+.glambooking-settings .button-primary:hover,
+.glambooking-dashboard .button-primary:hover {
+    background: rgba(0, 0, 0, 0.9);
+    border-color: rgba(0, 0, 0, 0.9);
+}

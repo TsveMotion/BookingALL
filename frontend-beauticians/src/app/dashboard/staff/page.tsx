@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { UserCog, Plus, Edit2, Trash2, Crown, Mail, Shield, MapPin, X, Check, RefreshCw, Copy, Clock } from 'lucide-react';
-import DashboardLayout from '@/components/DashboardLayout';
+import { useRouter } from 'next/navigation';
+import { UserCog, Plus, Edit2, Trash2, Crown, Mail, Shield, MapPin, X, Check, RefreshCw, Copy, Clock, AlertCircle, Zap } from 'lucide-react';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -34,17 +34,19 @@ interface Location {
 
 const PLAN_LIMITS = {
   FREE: 1, // Owner only
-  STARTER: 1, // Owner only
+  STARTER: 3, // Owner + 2 staff members
   PRO: 999, // Unlimited
 };
 
 export default function StaffPage() {
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const [staff, setStaff] = useState<Staff[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -57,11 +59,18 @@ export default function StaffPage() {
 
   const userPlan = (user as any)?.business?.plan || 'FREE';
   const limit = PLAN_LIMITS[userPlan as keyof typeof PLAN_LIMITS];
+  const ownerEmail = user?.email?.toLowerCase();
+  const nonOwnerStaff = staff.filter(s => s.email.toLowerCase() !== ownerEmail);
   const canAddMore = staff.length < limit;
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      router.replace('/login');
+      return;
+    }
     void loadData();
-  }, []);
+  }, [authLoading, user]);
 
   async function loadData() {
     try {
@@ -69,11 +78,19 @@ export default function StaffPage() {
         api.get('/staff'),
         api.get('/locations'),
       ]);
-      setStaff(staffResponse.data);
+      
+      // Show ALL staff members including the owner
+      const staffData = staffResponse.data || [];
+      
+      setStaff(staffData);
       setLocations(locationsResponse.data);
-    } catch (error) {
-      console.error('Failed to load data:', error);
-      toast.error('Failed to load staff');
+    } catch (error: any) {
+      if (error.response?.status === 401) {
+        router.replace('/login');
+      } else {
+        console.error('Failed to load data:', error);
+        toast.error('Failed to load staff');
+      }
     } finally {
       setLoading(false);
     }
@@ -152,6 +169,10 @@ export default function StaffPage() {
   };
 
   const openInviteModal = () => {
+    if (!canAddMore) {
+      setShowUpgradeModal(true);
+      return;
+    }
     resetForm();
     setShowInviteModal(true);
   };
@@ -200,92 +221,114 @@ export default function StaffPage() {
     }));
   };
 
+  if (authLoading || loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-12 h-12 rounded-full border-4 border-gray-200 border-t-black animate-spin"></div>
+          <p className="text-sm text-gray-500 font-medium">Loading team...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <DashboardLayout>
-      <div className="space-y-6 max-w-7xl">
+    <div className="p-6 space-y-6">
         {/* Header */}
-        <div className="flex justify-between items-start">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Team Management</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Team Management</h1>
             <p className="text-sm text-gray-600 mt-1">
-              Manage your team members and permissions ({staff.length}/{limit === 999 ? '∞' : limit})
+              {staff.length} team member{staff.length !== 1 ? 's' : ''} ({nonOwnerStaff.length} staff) • {limit === 999 ? 'Unlimited' : `${limit} max on ${userPlan} plan`}
             </p>
           </div>
           <button
-            onClick={() => canAddMore ? openInviteModal() : toast.error('Upgrade required')}
-            disabled={!canAddMore && userPlan !== 'PRO'}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
-              canAddMore
-                ? 'bg-purple-600 text-white hover:bg-purple-700'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-            }`}
+            onClick={openInviteModal}
+            className="flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-all shadow-sm"
           >
-            <Mail className="w-4 h-4" />
+            <Mail className="w-5 h-5" />
             Invite Team Member
           </button>
         </div>
 
-        {/* Upgrade Banner */}
-        {!canAddMore && userPlan !== 'PRO' && (
-          <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-xl p-6">
-            <div className="flex items-start gap-4">
-              <Crown className="w-6 h-6 text-purple-600 flex-shrink-0 mt-1" />
+        {/* Plan Info Card */}
+        {userPlan !== 'PRO' && (
+          <div className="bg-gray-50 border border-gray-300 rounded-xl p-5">
+            <div className="flex items-start gap-3">
+              <Crown className="w-5 h-5 text-gray-600 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
-                <h3 className="font-bold text-gray-900 mb-2">Team Member Limit Reached</h3>
-                <p className="text-sm text-gray-700 mb-4">
-                  {userPlan === 'STARTER' 
-                    ? 'Starter plan includes only 1 staff member (the owner). Upgrade to Pro to add team members.' 
-                    : 'Free plan includes only 1 staff member (the owner). Upgrade to Pro to add team members.'}
+                <h3 className="font-semibold text-gray-900 mb-1">Team Plan Limits</h3>
+                <p className="text-sm text-gray-700">
+                  {userPlan === 'FREE' 
+                    ? 'Free plan includes you (the owner) only. Upgrade to Starter for up to 3 team members or Pro for unlimited.'
+                    : `Starter plan includes up to 3 team members total (you + 2 staff). Upgrade to Pro for unlimited team members.`
+                  }
                 </p>
-                <a
-                  href="/dashboard/billing"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition"
-                >
-                  <Crown className="w-4 h-4" />
-                  Upgrade Now
-                </a>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Info Card - Pending Invites Authentication */}
+        {nonOwnerStaff.some(s => s.status === 'pending') && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-5">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h3 className="font-semibold text-gray-900 mb-1">Pending Invitations</h3>
+                <p className="text-sm text-gray-700">
+                  Staff members with <span className="font-semibold">Pending</span> status need to check their email and create an account by clicking the invitation link. Once they set up their credentials and accept the invite, they'll appear as <span className="font-semibold">Active</span>.
+                </p>
               </div>
             </div>
           </div>
         )}
 
         {/* Staff List */}
-        <div className="bg-white rounded-lg border border-gray-200">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="w-8 h-8 rounded-full border-4 border-purple-200 border-t-purple-600 animate-spin" />
-            </div>
-          ) : staff.length === 0 ? (
-            <div className="text-center py-12">
-              <UserCog className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-600">No team members yet</p>
-              {canAddMore && (
-                <button
-                  onClick={openInviteModal}
-                  className="mt-4 text-purple-600 hover:text-purple-700 font-medium"
-                >
-                  Invite your first team member
-                </button>
-              )}
+        <div className="bg-white rounded-xl border border-gray-300 shadow-sm">
+          {staff.length === 0 ? (
+            <div className="text-center py-16 px-6">
+              <UserCog className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="font-bold text-gray-900 text-lg mb-2">No staff members yet</h3>
+              <p className="text-sm text-gray-600 mb-6 max-w-md mx-auto">
+                Invite staff members to help manage bookings, clients, and services. {userPlan === 'PRO' ? 'Pro plan allows unlimited team members!' : userPlan === 'STARTER' ? 'Starter plan allows up to 3 team members.' : 'Upgrade to Starter or Pro to add team members.'}
+              </p>
+              <button
+                onClick={openInviteModal}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-all shadow-sm"
+              >
+                <Plus className="w-4 h-4" />
+                Invite First Team Member
+              </button>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
+                <thead className="bg-gray-50 border-b border-gray-300">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Locations</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Name</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Role</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Contact</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Status</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Locations</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {staff.map((member) => (
-                    <tr key={member.id} className="hover:bg-gray-50 transition">
+                  {staff.map((member) => {
+                    const isOwner = member.email.toLowerCase() === ownerEmail;
+                    return (
+                    <tr key={member.id} className={`hover:bg-gray-50 transition ${isOwner ? 'bg-amber-50' : ''}`}>
                       <td className="px-6 py-4">
-                        <div className="font-medium text-gray-900">{member.name}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="font-medium text-gray-900">{member.name}</div>
+                          {isOwner && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-800 text-xs font-semibold rounded-full">
+                              <Crown className="w-3 h-3" />
+                              Owner
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <span className="text-sm text-gray-600">{member.role || '-'}</span>
@@ -330,6 +373,10 @@ export default function StaffPage() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex gap-2">
+                          {isOwner ? (
+                            <span className="text-xs text-gray-500 italic px-2 py-1">Account owner</span>
+                          ) : (
+                            <>
                           {member.status === 'pending' && (
                             <>
                               <button
@@ -350,7 +397,7 @@ export default function StaffPage() {
                           )}
                           <button
                             onClick={() => openEditModal(member)}
-                            className="p-2 text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition"
+                            className="p-2 text-gray-600 hover:text-black hover:bg-gray-100 rounded-lg transition"
                             title="Edit permissions"
                           >
                             <Shield className="w-4 h-4" />
@@ -359,18 +406,69 @@ export default function StaffPage() {
                             onClick={() => handleDelete(member.id)}
                             className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
                             title="Remove member"
+                            disabled={isOwner}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
+                          </>
+                          )}
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  );})}
                 </tbody>
               </table>
             </div>
           )}
         </div>
+
+        {/* Upgrade Modal */}
+        {showUpgradeModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-lg w-full">
+              <div className="p-8 text-center">
+                <div className="w-16 h-16 bg-gradient-to-br from-gray-900 to-black rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Zap className="w-8 h-8 text-white" />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-3">Upgrade to Pro Plan</h2>
+                <p className="text-gray-600 mb-6">
+                  {userPlan === 'STARTER' 
+                    ? 'Starter plan is limited to 3 team members total (you + 2 staff). Upgrade to Pro for unlimited team members.'
+                    : 'Free plan is limited to 1 team member (you, the owner). Upgrade to Starter for 3 members or Pro for unlimited.'}
+                </p>
+                
+                <div className="bg-gray-50 rounded-xl p-6 mb-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="text-left">
+                      <p className="text-xs text-gray-500 mb-1 uppercase font-semibold">Current Plan</p>
+                      <p className="text-lg font-bold text-gray-900">{userPlan}</p>
+                    </div>
+                    <div className="text-left">
+                      <p className="text-xs text-gray-500 mb-1 uppercase font-semibold">Team Limit</p>
+                      <p className="text-lg font-bold text-gray-900">{limit} {limit === 1 ? 'Member' : 'Members'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowUpgradeModal(false)}
+                    className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <a
+                    href="/dashboard/billing"
+                    className="flex-1 px-4 py-2.5 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors inline-flex items-center justify-center gap-2"
+                  >
+                    <Crown className="w-4 h-4" />
+                    Upgrade Now
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Invite Modal */}
         {showInviteModal && (
@@ -392,7 +490,7 @@ export default function StaffPage() {
                       required
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
                     />
                   </div>
                   <div>
@@ -402,7 +500,7 @@ export default function StaffPage() {
                       required
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
                     />
                   </div>
                 </div>
@@ -415,7 +513,7 @@ export default function StaffPage() {
                       placeholder="e.g., Stylist, Manager"
                       value={formData.role}
                       onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
                     />
                   </div>
                   <div>
@@ -424,7 +522,7 @@ export default function StaffPage() {
                       type="tel"
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
                     />
                   </div>
                 </div>
@@ -440,7 +538,7 @@ export default function StaffPage() {
                             type="checkbox"
                             checked={formData.assignedLocationIds.includes(location.id)}
                             onChange={() => toggleLocation(location.id)}
-                            className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                            className="w-4 h-4 text-black rounded focus:ring-black"
                           />
                           <span className="text-sm">{location.name}</span>
                         </label>
@@ -484,7 +582,7 @@ export default function StaffPage() {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-medium flex items-center justify-center gap-2"
+                    className="flex-1 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition font-medium flex items-center justify-center gap-2"
                   >
                     <Mail className="w-4 h-4" />
                     Send Invitation
@@ -515,7 +613,7 @@ export default function StaffPage() {
                       required
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
                     />
                   </div>
                   <div>
@@ -524,7 +622,7 @@ export default function StaffPage() {
                       type="text"
                       value={formData.role}
                       onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
                     />
                   </div>
                 </div>
@@ -550,7 +648,7 @@ export default function StaffPage() {
                             type="checkbox"
                             checked={formData.assignedLocationIds.includes(location.id)}
                             onChange={() => toggleLocation(location.id)}
-                            className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                            className="w-4 h-4 text-black rounded focus:ring-black"
                           />
                           <span className="text-sm">{location.name}</span>
                         </label>
@@ -602,7 +700,6 @@ export default function StaffPage() {
             </div>
           </div>
         )}
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }

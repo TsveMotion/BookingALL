@@ -120,14 +120,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   onClick={() => setSidebarOpen(false)}
                   className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
                     isActive
-                      ? 'bg-purple-600 text-white shadow-md'
+                      ? 'bg-black text-white shadow-md'
                       : 'text-gray-700 hover:bg-gray-100'
                   }`}
                 >
                   <Icon className="w-5 h-5" />
                   <span className="font-medium">{item.name}</span>
                   {item.badge && (
-                    <span className="ml-auto px-2 py-0.5 bg-purple-100 text-purple-800 text-xs font-bold rounded-full">
+                    <span className="ml-auto px-2 py-0.5 bg-black text-white text-xs font-bold rounded-full">
                       {item.badge}
                     </span>
                   )}
@@ -139,7 +139,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           {/* User Profile & Logout */}
           <div className="p-4 border-t border-gray-200">
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm">
+              <div className="w-9 h-9 rounded-full bg-black flex items-center justify-center text-white font-semibold text-sm">
                 {user?.name?.charAt(0).toUpperCase() || 'U'}
               </div>
               <div className="flex-1 min-w-0">

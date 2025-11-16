@@ -1,0 +1,78 @@
+
+// Campaign Model - Marketing Funnel
+model Campaign {
+  id                String              @id @default(cuid())
+  
+  // Business relationship
+  businessId        String
+  business          Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  // Campaign details
+  name              String
+  type              String              // "email", "sms", "followup", "promotion", "reactivation"
+  subject           String?             // For emails
+  message           String              @db.Text
+  
+  // Targeting
+  targetAudience    String              // "all", "new", "returning", "inactive", "highvalue"
+  
+  // Schedule
+  scheduledAt       DateTime?
+  sentAt            DateTime?
+  
+  // Status
+  status            String              @default("draft") // "draft", "scheduled", "sending", "sent", "failed"
+  active            Boolean             @default(true)
+  
+  // Stats
+  recipientCount    Int                 @default(0)
+  sentCount         Int                 @default(0)
+  deliveredCount    Int                 @default(0)
+  openedCount       Int                 @default(0)
+  clickedCount      Int                 @default(0)
+  
+  // Recipients
+  recipients        CampaignRecipient[]
+  
+  // Metadata
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  createdBy         String?
+  
+  @@index([businessId])
+  @@index([status])
+  @@index([type])
+  @@index([scheduledAt])
+}
+
+// Campaign Recipient Model
+model CampaignRecipient {
+  id                String              @id @default(cuid())
+  
+  // Campaign relationship
+  campaignId        String
+  campaign          Campaign            @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  
+  // Client relationship
+  clientId          String
+  client            Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  // Delivery status
+  status            String              @default("pending") // "pending", "sent", "delivered", "failed", "bounced"
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  openedAt          DateTime?
+  clickedAt         DateTime?
+  
+  // Error tracking
+  errorMessage      String?
+  
+  // Metadata
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  
+  @@index([campaignId])
+  @@index([clientId])
+  @@index([status])
+  @@unique([campaignId, clientId])
+}

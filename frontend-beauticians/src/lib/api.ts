@@ -1,9 +1,9 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').replace(/\/$/, '');
 
 export const api = axios.create({
-  baseURL: `${API_URL}/api`,
+  baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -23,7 +23,14 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Don't intercept auth endpoints (login, register, refresh) - let them fail normally
+    const isAuthEndpoint = originalRequest.url?.includes('/auth/login') || 
+                           originalRequest.url?.includes('/auth/register') ||
+                           originalRequest.url?.includes('/auth/refresh') ||
+                           originalRequest.url?.includes('/auth/forgot-password') ||
+                           originalRequest.url?.includes('/auth/reset-password');
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
 
       try {
@@ -41,7 +48,7 @@ api.interceptors.response.use(
           return Promise.reject(new Error('Authentication required'));
         }
 
-        const response = await axios.post(`${API_URL}/api/auth/refresh`, {
+        const response = await axios.post(`${API_URL}/auth/refresh`, {
           refreshToken,
         });
 

@@ -5,8 +5,12 @@ export const registerSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters'),
   name: z.string().min(2, 'Name must be at least 2 characters'),
   businessName: z.string().min(2, 'Business name is required'),
-  category: z.enum(['BEAUTICIAN', 'HAIRDRESSER', 'BARBER', 'NAIL_TECH', 'MASSAGE', 'SPA', 'OTHER']),
-  phone: z.string().optional(),
+  category: z.string().transform(val => val.toUpperCase()),
+  phone: z.string().nullish().transform(val => val || undefined),
+  address: z.string().nullish().transform(val => val || undefined),
+  city: z.string().nullish().transform(val => val || undefined),
+  postcode: z.string().nullish().transform(val => val || undefined),
+  locationName: z.string().nullish().transform(val => val || undefined),
 });
 
 export const loginSchema = z.object({

@@ -57,6 +57,95 @@ router.get('/subscription', authenticate, requireBusiness, async (req: AuthReque
   }
 });
 
+// Create checkout for onboarding (plan selection)
+const createCheckoutSchema = z.object({
+  priceId: z.string().min(1, 'Price ID is required'),
+  planId: z.string().min(1, 'Plan ID is required'),
+});
+
+router.post('/create-checkout', authenticate, validateBody(createCheckoutSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    const businessId = req.user!.businessId;
+    const { priceId, planId } = req.body;
+
+    if (!businessId) {
+      return res.status(400).json({ error: 'Business not found' });
+    }
+
+    // Get user and business
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { business: true },
+    });
+
+    if (!user || !user.business) {
+      return res.status(404).json({ error: 'User or business not found' });
+    }
+
+    // Get or create Stripe customer
+    let stripeCustomerId = user.business.stripeCustomerId;
+    if (!stripeCustomerId) {
+      const customer = await getOrCreateCustomer({
+        email: user.email,
+        name: user.name || undefined,
+        metadata: {
+          userId: user.id,
+          businessId: user.business.id,
+        },
+      });
+      stripeCustomerId = customer.id;
+
+      // Update business with customer ID
+      await prisma.business.update({
+        where: { id: businessId },
+        data: { stripeCustomerId },
+      });
+    }
+
+    // Create checkout session
+    const session = await createCheckoutSession({
+      customerId: stripeCustomerId,
+      customerEmail: user.email,
+      priceId,
+      successUrl: `${config.frontendUrls.beauticians}/onboarding/success?plan=${planId}`,
+      cancelUrl: `${config.frontendUrls.beauticians}/onboarding/plan?canceled=true`,
+      metadata: {
+        userId: user.id,
+        businessId: user.business.id,
+        planId,
+      },
+    });
+
+    res.json({ url: session.url, sessionId: session.id });
+  } catch (error) {
+    console.error('Create checkout error:', error);
+    res.status(500).json({ error: 'Failed to create checkout session' });
+  }
+});
+
+// Update business plan (for free starter plan)
+const updatePlanSchema = z.object({
+  plan: z.string().min(1, 'Plan is required'),
+});
+
+router.patch('/plan', authenticate, requireBusiness, validateBody(updatePlanSchema), async (req: AuthRequest, res: Response) => {
+  try {
+    const businessId = req.user!.businessId!;
+    const { plan } = req.body;
+
+    await prisma.business.update({
+      where: { id: businessId },
+      data: { plan: plan.toUpperCase() },
+    });
+
+    res.json({ message: 'Plan updated successfully' });
+  } catch (error) {
+    console.error('Update plan error:', error);
+    res.status(500).json({ error: 'Failed to update plan' });
+  }
+});
+
 // Create subscription checkout
 const createSubscriptionSchema = z.object({
   plan: z.enum(['starter', 'pro']),
@@ -301,18 +390,32 @@ router.post('/webhook', async (req, res) => {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as any;
-        const { bookingId, businessId, plan } = session.metadata;
+        const { bookingId, businessId, plan, planId } = session.metadata;
 
         if (session.mode === 'subscription') {
-          // Update business with subscription
+          // Update business with subscription from onboarding or dashboard
+          let planName = plan || planId || 'PRO';
+          
+          // Convert planId to plan name (e.g., 'pro_monthly' -> 'PRO')
+          if (planId) {
+            if (planId.includes('business')) {
+              planName = 'BUSINESS';
+            } else if (planId.includes('pro')) {
+              planName = 'PRO';
+            }
+          }
+          
           await prisma.business.update({
             where: { id: businessId },
             data: {
-              plan: plan.toUpperCase(),
+              plan: planName.toUpperCase(),
               subscriptionStatus: 'active',
               stripeSubscriptionId: session.subscription,
+              stripeCustomerId: session.customer,
             },
           });
+          
+          console.log(`✅ Business ${businessId} upgraded to ${planName}`);
         } else if (session.mode === 'payment' && bookingId) {
           // Update booking as paid
           const booking = await prisma.booking.update({

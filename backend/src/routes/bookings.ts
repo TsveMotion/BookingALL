@@ -66,6 +66,16 @@ router.get('/', authenticate, requireBusiness, async (req: AuthRequest, res: Res
           client: true,
           service: true,
           location: true,
+          addons: {
+            include: {
+              addon: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
           createdBy: {
             select: {
               id: true,
@@ -110,6 +120,18 @@ router.get('/:id', authenticate, requireBusiness, async (req: AuthRequest, res: 
         client: true,
         service: true,
         location: true,
+        addons: {
+          include: {
+            addon: {
+              select: {
+                id: true,
+                name: true,
+                priceAdjustment: true,
+                durationAdjustment: true,
+              },
+            },
+          },
+        },
         createdBy: {
           select: {
             id: true,

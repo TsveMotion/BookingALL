@@ -75,6 +75,19 @@ router.get('/public/:slug', async (req, res: Response) => {
           where: { active: true },
           orderBy: { name: 'asc' },
         },
+        staff: {
+          where: { active: true },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            role: true,
+            avatar: true,
+            bio: true,
+            skills: true,
+          },
+        },
       },
     });
 
@@ -127,6 +140,7 @@ router.get('/public/:slug', async (req, res: Response) => {
       },
       bookingPage: bookingPage,
       services: visibleServices,
+      staff: business.staff || [],
     });
   } catch (error) {
     console.error('Get public booking page error:', error);

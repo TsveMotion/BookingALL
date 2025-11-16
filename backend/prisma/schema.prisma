@@ -86,6 +86,7 @@ model User {
   bookingsCreated   Booking[]         @relation("BookingCreatedBy")
   servicesCreated   Service[]
   staffProfile      Staff?
+  notifications     Notification[]
   
   @@index([email])
   @@index([businessId])
@@ -99,6 +100,7 @@ model Business {
   // Business Info
   name              String
   slug              String            @unique
+  subdomain         String?           @unique // For marketing funnels: [businessname].glambooking.co.uk
   category          BusinessCategory
   description       String?           @db.Text
   logo              String?
@@ -146,6 +148,12 @@ model Business {
   bookings          Booking[]
   bookingPage       BookingPageSettings?
   businessSettings  BusinessSettings?
+  notifications     Notification[]
+  serviceAddons     ServiceAddon[]
+  aftercareTemplates AftercareTemplate[]
+  waiverTemplates   WaiverTemplate[]
+  campaigns         Campaign[]
+  wordpressIntegration WordPressIntegration?
   
   @@index([slug])
   @@index([category])
@@ -161,13 +169,30 @@ model Location {
   
   // Location Info
   name              String
+  description       String?           @db.Text
   address           String?
   city              String?
   postcode          String?
+  country           String            @default("United Kingdom")
   phone             String?
+  email             String?
   
-  // Working Hours
-  workingHours      Json?             // {"monday": {"open": "09:00", "close": "17:00", "closed": false}}
+  // Opening Hours - Structured JSON
+  // {"monday": {"open": "09:00", "close": "17:00", "closed": false}, ...}
+  openingHours      Json?             
+  
+  // Additional Details
+  parkingInfo       String?           @db.Text
+  accessibilityInfo String?           @db.Text
+  
+  // Social & Online
+  socialLinks       Json?             // {"instagram": "...", "facebook": "...", "twitter": "..."}
+  googleMapsUrl     String?
+  websiteUrl        String?
+  
+  // Map Coordinates
+  latitude          Float?
+  longitude         Float?
   
   // Settings
   isPrimary         Boolean           @default(false)
@@ -183,6 +208,7 @@ model Location {
   
   @@index([businessId])
   @@index([active])
+  @@index([isPrimary])
 }
 
 // Staff Model - Team members per business
@@ -200,6 +226,9 @@ model Staff {
   email             String
   phone             String?
   role              String?           // "Stylist", "Manager", "Receptionist", etc.
+  avatar            String?
+  bio               String?           @db.Text
+  skills            String[]          @default([])
   
   // Location assignments (can be assigned to multiple locations)
   assignedLocationIds String[]        @default([])
@@ -271,6 +300,17 @@ model Service {
   // Categorization
   category          String?
   
+  // Staff assignment
+  staffIds          String[]          @default([])
+  
+  // Media
+  gallery           String[]          @default([])
+  
+  // Requirements & Instructions
+  waiverRequired          Boolean           @default(false)
+  aftercareInstructions   String?           @db.Text
+  preparationInstructions String?           @db.Text
+  
   // Created by
   createdById       String
   createdBy         User              @relation(fields: [createdById], references: [id], onDelete: Cascade)
@@ -285,6 +325,9 @@ model Service {
   // Relations
   locations         ServiceLocation[]
   bookings          Booking[]
+  addons            ServiceAddon[]
+  aftercareTemplate AftercareTemplate?
+  waiverTemplate    WaiverTemplate?
   
   @@index([businessId])
   @@index([active])
@@ -318,10 +361,33 @@ model Client {
   email             String
   phone             String?
   birthday          DateTime?
+  address           String?           @db.Text
   
-  // Notes
+  // Custom Fields
+  occupation        String?
+  referralSource    String?           // How they found us
+  emergencyContact  String?
+  emergencyPhone    String?
+  
+  // Medical & Preferences
+  allergies         String?           @db.Text
+  medicalConditions String?           @db.Text
+  skinType          String?           // "dry", "oily", "combination", "sensitive"
+  preferences       String?           @db.Text // Product preferences, etc.
+  
+  // Notes & Tags
   notes             String?           @db.Text
+  internalNotes     String?           @db.Text // Private staff notes
   tags              String[]          @default([])
+  
+  // Marketing
+  marketingConsent  Boolean           @default(false)
+  smsConsent        Boolean           @default(false)
+  emailConsent      Boolean           @default(false)
+  
+  // Status
+  vipStatus         Boolean           @default(false)
+  status            String            @default("active") // "active", "inactive", "blocked"
   
   // Metadata
   createdAt         DateTime          @default(now())
@@ -329,6 +395,7 @@ model Client {
   
   // Relations
   bookings          Booking[]
+  campaignRecipients CampaignRecipient[]
   
   @@index([businessId])
   @@index([email])
@@ -371,6 +438,19 @@ model Booking {
   
   // Notes
   notes             String?           @db.Text
+  
+  // Add-ons
+  addons            BookingAddon[]
+  
+  // Aftercare tracking
+  aftercareSent     Boolean           @default(false)
+  aftercareSentAt   DateTime?
+  
+  // Waiver tracking
+  waiverRequired    Boolean           @default(false)
+  waiverSigned      Boolean           @default(false)
+  waiverSignedAt    DateTime?
+  waiverUrl         String?
   
   // Created by (staff member who created it)
   createdById       String
@@ -551,4 +631,251 @@ model LoginActivity {
   
   @@index([userId])
   @@index([createdAt])
+}
+
+// Notification Model
+model Notification {
+  id                String            @id @default(cuid())
+  
+  // User & Business
+  userId            String
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessId        String
+  business          Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  // Notification details
+  type              String            // booking_created, client_created, payment_successful, etc.
+  message           String
+  meta              Json?             // Additional metadata
+  read              Boolean           @default(false)
+  
+  // Metadata
+  createdAt         DateTime          @default(now())
+  
+  @@index([userId])
+  @@index([businessId])
+  @@index([createdAt])
+  @@index([read])
+}
+
+// Service Add-on Model
+model ServiceAddon {
+  id                String            @id @default(cuid())
+  
+  // Service relationship
+  serviceId         String
+  service           Service           @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  
+  // Business
+  businessId        String
+  business          Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  // Add-on details
+  name              String
+  description       String?           @db.Text
+  priceAdjustment   Float             @default(0) // Can be positive or negative
+  durationAdjustment Int              @default(0) // In minutes, can be positive or negative
+  required          Boolean           @default(false)
+  
+  // Status
+  active            Boolean           @default(true)
+  
+  // Usage tracking
+  bookingAddons     BookingAddon[]
+  
+  // Metadata
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  @@index([serviceId])
+  @@index([businessId])
+  @@index([active])
+}
+
+// Booking Add-on (junction table)
+model BookingAddon {
+  id                String            @id @default(cuid())
+  
+  // Booking
+  bookingId         String
+  booking           Booking           @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  
+  // Add-on
+  addonId           String
+  addon             ServiceAddon      @relation(fields: [addonId], references: [id], onDelete: Cascade)
+  
+  // Pricing at time of booking (frozen)
+  priceAdjustment   Float
+  durationAdjustment Int
+  
+  // Metadata
+  createdAt         DateTime          @default(now())
+  
+  @@index([bookingId])
+  @@index([addonId])
+}
+
+// Aftercare Template Model
+model AftercareTemplate {
+  id                String            @id @default(cuid())
+  
+  // Service relationship (one template per service)
+  serviceId         String            @unique
+  service           Service           @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  
+  // Business
+  businessId        String
+  business          Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  // Template details
+  title             String
+  content           String            @db.Text // HTML content
+  
+  // Delivery settings
+  sendMethod        String            @default("email") // "email", "sms", "both"
+  sendTrigger       String            @default("immediate") // "immediate", "delayed"
+  sendDelayHours    Int               @default(0) // Hours after appointment
+  
+  // Status
+  active            Boolean           @default(true)
+  
+  // Metadata
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  @@index([businessId])
+  @@index([serviceId])
+  @@index([active])
+}
+
+// Waiver Template Model
+model WaiverTemplate {
+  id                String            @id @default(cuid())
+  
+  // Service relationship (one waiver per service)
+  serviceId         String            @unique
+  service           Service           @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  
+  // Business
+  businessId        String
+  business          Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  // Waiver details
+  title             String
+  content           String            @db.Text // HTML content
+  
+  // Settings
+  requireSignature  Boolean           @default(true)
+  requireBefore     Boolean           @default(true) // Require before or after appointment
+  autoSend          Boolean           @default(true) // Auto-send to client
+  
+  // Status
+  active            Boolean           @default(true)
+  
+  // Metadata
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  @@index([businessId])
+  @@index([serviceId])
+  @@index([active])
+}
+
+// Campaign Model - Marketing Funnel
+model Campaign {
+  id                String              @id @default(cuid())
+  
+  // Business relationship
+  businessId        String
+  business          Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  // Campaign details
+  name              String
+  type              String              // "email", "sms", "followup", "promotion", "reactivation"
+  subject           String?             // For emails
+  message           String              @db.Text
+  
+  // Targeting
+  targetAudience    String              // "all", "new", "returning", "inactive", "highvalue"
+  
+  // Schedule
+  scheduledAt       DateTime?
+  sentAt            DateTime?
+  
+  // Status
+  status            String              @default("draft") // "draft", "scheduled", "sending", "sent", "failed"
+  active            Boolean             @default(true)
+  
+  // Stats
+  recipientCount    Int                 @default(0)
+  sentCount         Int                 @default(0)
+  deliveredCount    Int                 @default(0)
+  openedCount       Int                 @default(0)
+  clickedCount      Int                 @default(0)
+  
+  // Recipients
+  recipients        CampaignRecipient[]
+  
+  // Metadata
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  createdBy         String?
+  
+  @@index([businessId])
+  @@index([status])
+  @@index([type])
+  @@index([scheduledAt])
+}
+
+// Campaign Recipient Model
+model CampaignRecipient {
+  id                String              @id @default(cuid())
+  
+  // Campaign relationship
+  campaignId        String
+  campaign          Campaign            @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  
+  // Client relationship
+  clientId          String
+  client            Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  // Delivery status
+  status            String              @default("pending") // "pending", "sent", "delivered", "failed", "bounced"
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  openedAt          DateTime?
+  clickedAt         DateTime?
+  
+  // Error tracking
+  errorMessage      String?
+  
+  // Metadata
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  
+  @@index([campaignId])
+  @@index([clientId])
+  @@index([status])
+  @@unique([campaignId, clientId])
+}
+
+// WordPress Integration Model
+model WordPressIntegration {
+  id            String    @id @default(cuid())
+  
+  // Business relationship
+  businessId    String    @unique
+  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  // API Keys
+  publicKey     String    @unique
+  secretKey     String    @unique
+  
+  // Metadata
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastUsedAt    DateTime?
+  
+  @@index([businessId])
+  @@index([publicKey])
 }

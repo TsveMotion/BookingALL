@@ -2,9 +2,12 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
+import session from 'express-session';
+import passport from 'passport';
 import rateLimit from 'express-rate-limit';
 import { config } from './config';
 import authRoutes from './routes/auth';
+import authGoogleRoutes from './routes/auth-google';
 import userRoutes from './routes/user';
 import businessRoutes from './routes/business';
 import servicesRoutes from './routes/services';
@@ -18,6 +21,14 @@ import abandonedBookingsRoutes from './routes/abandoned-bookings';
 import locationsRoutes from './routes/locations';
 import staffRoutes from './routes/staff';
 import settingsRoutes from './routes/settings';
+import notificationsRoutes from './routes/notifications';
+import addonsRoutes from './routes/addons';
+import aftercareRoutes from './routes/aftercare';
+import waiversRoutes from './routes/waivers';
+import campaignsRoutes from './routes/campaigns';
+import wordpressRoutes from './routes/wordpress';
+import uploadRoutes from './routes/upload';
+import billingRoutes from './routes/billing';
 
 const app = express();
 
@@ -34,15 +45,33 @@ app.options('*', cors(config.cors));
 
 app.use(cookieParser());
 
+// Session middleware (required for passport)
+app.use(session({
+  secret: config.jwt.secret,
+  resave: false,
+  saveUninitialized: false,
+  cookie: { 
+    secure: config.nodeEnv === 'production',
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
+
+// Initialize Passport
+app.use(passport.initialize());
+app.use(passport.session());
+
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Rate limiting
+// Rate limiting - more lenient for development
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: config.nodeEnv === 'production' ? 100 : 1000, // More requests allowed in dev
   message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
 app.use('/api/', limiter);
@@ -58,6 +87,7 @@ app.get('/health', (req, res) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/auth', authGoogleRoutes); // Google OAuth with proper redirects
 app.use('/api/user', userRoutes);
 app.use('/api/business', businessRoutes);
 app.use('/api/services', servicesRoutes);
@@ -71,6 +101,14 @@ app.use('/api/abandoned-bookings', abandonedBookingsRoutes);
 app.use('/api/locations', locationsRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/notifications', notificationsRoutes);
+app.use('/api/campaigns', campaignsRoutes);
+app.use('/api/addons', addonsRoutes);
+app.use('/api/aftercare', aftercareRoutes);
+app.use('/api/waivers', waiversRoutes);
+app.use('/api/wordpress', wordpressRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/billing', billingRoutes);
 
 // 404 handler
 app.use((req, res) => {

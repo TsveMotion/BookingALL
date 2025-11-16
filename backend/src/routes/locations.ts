@@ -8,21 +8,42 @@ const router = Router();
 // Validation schema
 const createLocationSchema = z.object({
   name: z.string().min(1),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  postcode: z.string().optional(),
-  phone: z.string().optional(),
-  workingHours: z.any().optional(),
+  description: z.string().nullish().transform(val => val || null),
+  address: z.string().nullish().transform(val => val || null),
+  city: z.string().nullish().transform(val => val || null),
+  postcode: z.string().nullish().transform(val => val || null),
+  country: z.string().optional().default('United Kingdom'),
+  phone: z.string().nullish().transform(val => val || null),
+  email: z.string().email().nullish().transform(val => val || null),
+  openingHours: z.any().optional(),
+  parkingInfo: z.string().nullish().transform(val => val || null),
+  accessibilityInfo: z.string().nullish().transform(val => val || null),
+  socialLinks: z.any().optional(),
+  googleMapsUrl: z.string().url().nullish().transform(val => val || null),
+  websiteUrl: z.string().url().nullish().transform(val => val || null),
+  latitude: z.number().nullish(),
+  longitude: z.number().nullish(),
   isPrimary: z.boolean().optional(),
+  active: z.boolean().optional(),
 });
 
 const updateLocationSchema = z.object({
   name: z.string().min(1).optional(),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  postcode: z.string().optional(),
-  phone: z.string().optional(),
-  workingHours: z.any().optional(),
+  description: z.string().nullish().transform(val => val || null),
+  address: z.string().nullish().transform(val => val || null),
+  city: z.string().nullish().transform(val => val || null),
+  postcode: z.string().nullish().transform(val => val || null),
+  country: z.string().optional(),
+  phone: z.string().nullish().transform(val => val || null),
+  email: z.string().email().nullish().transform(val => val || null),
+  openingHours: z.any().optional(),
+  parkingInfo: z.string().nullish().transform(val => val || null),
+  accessibilityInfo: z.string().nullish().transform(val => val || null),
+  socialLinks: z.any().optional(),
+  googleMapsUrl: z.string().url().nullish().transform(val => val || null),
+  websiteUrl: z.string().url().nullish().transform(val => val || null),
+  latitude: z.number().nullish(),
+  longitude: z.number().nullish(),
   isPrimary: z.boolean().optional(),
   active: z.boolean().optional(),
 });
@@ -34,6 +55,14 @@ router.get('/', authenticate, requireBusiness, async (req: AuthRequest, res: Res
 
     const locations = await prisma.location.findMany({
       where: { businessId },
+      include: {
+        _count: {
+          select: {
+            bookings: true,
+            services: true,
+          },
+        },
+      },
       orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
     });
 
@@ -41,6 +70,79 @@ router.get('/', authenticate, requireBusiness, async (req: AuthRequest, res: Res
   } catch (error) {
     console.error('Get locations error:', error);
     res.status(500).json({ error: 'Failed to fetch locations' });
+  }
+});
+
+// Get single location with analytics
+router.get('/:id', authenticate, requireBusiness, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const businessId = req.user!.businessId!;
+
+    const location = await prisma.location.findFirst({
+      where: { id, businessId },
+      include: {
+        services: {
+          include: {
+            service: true,
+          },
+        },
+        _count: {
+          select: {
+            bookings: true,
+            services: true,
+          },
+        },
+      },
+    });
+
+    if (!location) {
+      return res.status(404).json({ error: 'Location not found' });
+    }
+
+    // Get analytics
+    const [totalBookings, completedBookings, totalRevenue, recentBookings] = await Promise.all([
+      prisma.booking.count({
+        where: { locationId: id },
+      }),
+      prisma.booking.count({
+        where: { 
+          locationId: id,
+          status: 'COMPLETED',
+        },
+      }),
+      prisma.booking.aggregate({
+        where: { 
+          locationId: id,
+          paymentStatus: 'PAID',
+        },
+        _sum: {
+          totalAmount: true,
+        },
+      }),
+      prisma.booking.findMany({
+        where: { locationId: id },
+        include: {
+          client: true,
+          service: true,
+        },
+        orderBy: { startTime: 'desc' },
+        take: 10,
+      }),
+    ]);
+
+    res.json({
+      ...location,
+      analytics: {
+        totalBookings,
+        completedBookings,
+        totalRevenue: totalRevenue._sum.totalAmount || 0,
+        recentBookings,
+      },
+    });
+  } catch (error) {
+    console.error('Get location error:', error);
+    res.status(500).json({ error: 'Failed to fetch location' });
   }
 });
 
